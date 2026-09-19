@@ -1,157 +1,185 @@
-# Bonsai
-Bonsai is an attempt to provide a miniature and refined representation for the
-often cumbersome **syntax trees** and **program models**.
-This idea, of providing a *smaller tree* that is more or less the same thing,
-is where the name comes from.
+# ast-editor
 
-This work started as part of an analysis tool that I am developing for my own
-research. I am interested in analysing [ROS](http://www.ros.org/)
-robotics applications, which are often written in C++.
-Since free C++ analysis tools are *rather scarce*, I tried
-to come up with my own, using the Python bindings of the `clang` compiler.
-At the moment of this writing, I am aware that these bindings are incomplete
-in terms of AST information they provide.
+**ast-editor は、プログラム世界を AST として観察・編集するための境界層です。**
 
-As this analysis tool developed, I realized that the C++ analysis features
-are independent of ROS or any other framework, and that this kind of tool
-might be useful for someone else, either as is, or as a starting point for
-something else.
+このリポジトリは、もともと C++ などのプログラムを syntax tree / program model として扱う Bonsai を基礎にしています。現在の World Type System では、これを「プログラム世界を型付き構造として扱うための編集器」と位置づけます。
 
-## Features
-Bonsai provides an interface to represent, analyse or manipulate programs.
-The model it uses is abstract enough to serve as a basis for specific language
-implementations, although it focuses more on imperative/object-oriented
-languages for now.
+## World Type System における位置
 
-What to expect from **bonsai**:
-
-  - classes for the different **entities of a program** (e.g. variables, functions, etc.);
-  - extended classes for **specific programming languages** (only C++ for now);
-  - **parser implementations**, able to take a file and produce a model (e.g. `clang` for C++);
-  - extensible interface to **manipulate and query** the resulting model (e.g. find calls for a function);
-  - a console script to use as a standalone application.
-
-## Installation
-Here are some instructions to help you get bonsai.
-Bonsai has been tested with *Linux Ubuntu* and *Python 2.7*,
-but the platform should not make much of a difference.
-Dependencies are minimal, and depend on what you want to analyse.
-
-Since at the moment there is only a single implementation for C++
-using clang 3.8, you will need to install `libclang` and the
-[`clang.cindex` bindings](https://github.com/llvm-mirror/clang/tree/master/bindings/python)
-(`pip install clang`) to parse C++ files. Skip this if you want to use
-the library in any other way.
-
-### Method 1: Running Without Installation
-
-Open a terminal, and move to a directory where you want to clone this
-repository.
-
-```bash
-git clone https://github.com/git-afsantos/bonsai.git
-```
-
-There is an executable script in the root of this repository to help you get started.
-It allows you to run bonsai without installing it. Make sure that your terminal is at
-the root of the repository.
-
-```bash
-cd bonsai
-python bonsai-runner.py <args>
-```
-
-You can also run it with the executable package syntax.
-
-```bash
-python -m bonsai <args>
-```
-
-### Method 2: Installing Bonsai on Your Machine
-
-Bonsai is now available on [PyPi](https://pypi.python.org/pypi/bonsai-code).
-You can install it from source or from a wheel.
-
-```bash
-[sudo] pip install bonsai-code
-```
-
-The above command will install bonsai for you. Alternatively, download and extract its
-source, move to the project's root directory, and then execute the following.
-
-```bash
-python setup.py install
-```
-
-After installation, you should be able to run the command `bonsai` in your terminal
-from anywhere.
-
-## Examples
-The `cpp_example.py` script at the root of this repository is a small example on
-how to parse a C++ file and then find all references to a variable `a` in that file.
-In it, you can see parser creation
-
-```python
-parser = CppAstParser(workspace = "examples/cpp")
-```
-
-access to the global (top level, or root) scope of the program, and obtaining
-a pretty string representation of everything that goes in it
-
-```python
-parser.global_scope.pretty_str()
-```
-
-getting a list of all references to variable `a`, starting the search from
-the top of the program (global scope)
-
-```python
-CodeQuery(parser.global_scope).all_references.where_name("a").get()
-```
-
-and accessing diverse properties from the returned `CodeReference` objects,
-such as file line and column (`cppobj.line`, `cppobj.column`), the type of the
-object (`cppobj.result`), what is it a reference of (`cppobj.reference`,
-in this case a `CodeVariable`) and an attempt to interpret the program and
-resolve the reference to a concrete value (`resolve_reference(cppobj)`).
-
-Do note that **resolving expressions and references is still experimental**,
-and more often that not will not be able to produce anything useful.
-
-This is the pretty string output for a program that defines a class `C`
-and a couple of functions.
+世界には型があります。
 
 ```
-class C:
-  C():
-    [declaration]
-
-  void m(int a):
-    [declaration]
-
-  int x_ = None
-
-C():
-  x_ = 0
-
-void m(int a):
-  a = (a + 2) * 3
-  this.x_ = a
-
-int main(int argc, char ** argv):
-  C c = new C()
-  c.m(42)
-  C * c1 = new C()
-  C * c2 = new C()
-  new C()
-  delete(c1)
-  delete(c2)
-  return 0
+World
+│
+├── Entity       何があるか
+├── State        どうなっているか
+├── Operation    何ができるか
+├── Relation     どう結びつくか
+├── Type         何として扱うか
+└── Boundary     どこまでを一つの世界・概念として扱うか
+        │
+        └── Software World
+              │
+              └── Language
+                    │
+                    └── AST
+                          │
+                          └── ast-editor
 ```
 
-The pretty string representation, as seen, is a sort of pseudo-language, inspired
-in the Python syntax, even though the parsed program is originally in C++.
+AST は World そのものではありません。
 
-For more details on what you can get from the various program entities, check out
-the source for the [abstract model](bonsai/model.py) and then the language-specific
-implementation of your choice.
+**AST は、Language によって記述された Software World を、型付きの木構造として表現したものです。**
+
+したがって ast-editor の役割は、単にコードを書く GUI ではなく、
+
+> **プログラムという世界を、AST という構造で見る・調べる・操作するための Boundary**
+
+です。
+
+## Dictionary / Type / Ontology / System / Boundary
+
+World の基本要素との対応は次のようになります。
+
+| World | ast-editor での位置 |
+|---|---|
+| **Dictionary** | ノードや属性の名前・値を扱う |
+| **Type** | Variable、Function、Call、Class などのプログラム要素の型 |
+| **Ontology** | プログラム要素が何であり、何と関係するかという意味体系 |
+| **System** | Entity と Operation の関係からなるプログラム構造 |
+| **Boundary** | Source Code ↔ AST ↔ Program Model の変換・操作境界 |
+
+ここで重要なのは、**AST と Ontology を同一視しないこと**です。
+
+Ontology は意味と関係を定義します。
+AST は、その意味体系に対応する構造を Language の構文から生成します。
+
+```
+World Ontology
+      ↓
+Language Type System
+      ↓
+Source Code
+      ↓ parse
+     AST
+      ↓
+Program Model
+      ↓
+analysis / edit / transform
+      ↓
+Program World
+```
+
+## AST と World
+
+例えば、
+
+```cpp
+x = f(a)
+```
+
+という記述を AST として見ると、
+
+```
+Assignment
+├── Variable(x)
+└── Call
+    ├── Function(f)
+    └── Argument(a)
+```
+
+となります。
+
+World の語彙に戻すと、
+
+```
+Entity:
+  x
+  f
+  a
+
+Operation:
+  assign
+  call
+
+Relation:
+  x ← result(f(a))
+
+State:
+  x = result(f(a))
+```
+
+となります。
+
+つまり AST は、**Entity・Operation・Relation を持つ Software World の構造的な観測結果**として読むことができます。
+
+## ast-editor の役割
+
+ast-editor は次の循環を支える層です。
+
+```
+observe
+   ↓
+parse
+   ↓
+AST
+   ↓
+query
+   ↓
+understand
+   ↓
+edit / transform
+   ↓
+program
+   ↓
+observe
+```
+
+特に重要なのは **query と manipulation** です。
+
+AST を固定された解析結果として見るのではなく、プログラム世界に対して、
+
+- 何があるか
+- 何と何が関係するか
+- どの Entity がどの Operation を持つか
+- どの State を生むか
+- どこが Boundary か
+
+を探索し、必要なら構造を変更します。
+
+## BonsaiCode との関係
+
+`BonsaiCode` と `ast-editor` は、World Type System では次の位置になります。
+
+```
+bonsai/type
+    │
+    │ World の型を定義
+    ↓
+Software World
+    │
+    ├── Language
+    │
+    ├── AST
+    │
+    └── Program Model
+             │
+             ↓
+        ast-editor
+```
+
+したがって、`ast-editor` は `type` の代替ではありません。
+
+**type が World の型を扱い、ast-editor はその型体系を Software World に適用して、AST / Program Model を観察・操作する層です。**
+
+## 一言で定義する
+
+> **ast-editor = Software World を AST / Program Model として見るための Boundary**
+
+そして、
+
+> **AST = Language が Software World を構造化して表現したもの**
+
+です。
+
+この位置づけによって、AST は単なる「コード解析技術」ではなく、World Type System における **Software World の観測・操作モデル**として扱えます。
